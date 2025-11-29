@@ -33,9 +33,10 @@ class KnowledgeBase:
             >>> kb.tell("Safe(2,3)")
             >>> kb.tell("Free(2,3)")
         """
-        # TODO: Implement
-        self.facts.add(fact)
-        print(f"Added fact: {fact}")
+        if fact not in self.facts:
+            self.facts.add(fact)
+            # Automatically trigger inference when new facts are added
+            self.infer()
     
     def add_rule(self, premises: List[str], conclusion: str):
         """
@@ -49,9 +50,7 @@ class KnowledgeBase:
             >>> kb.add_rule(["Safe(X)", "Free(X)"], "CanMove(X)")
             This means: If Safe(X) AND Free(X) then CanMove(X)
         """
-        # TODO: Implement
         self.rules.append((premises, conclusion))
-        print(f"Added rule: {' AND '.join(premises)} → {conclusion}")
     
     def ask(self, query: str) -> bool:
         """
@@ -67,8 +66,6 @@ class KnowledgeBase:
             >>> kb.ask("Safe(2,3)")
             True
         """
-        # TODO: Implement proper inference
-        # For now, just check if it's in facts
         return query in self.facts
     
     def infer(self):
@@ -88,12 +85,34 @@ class KnowledgeBase:
             >>> kb.ask("CanMove(2,3)")
             True
         """
-        # TODO: Implement forward chaining
-        raise NotImplementedError("Forward chaining not implemented yet!")
+        changed = True
+        while changed:
+            changed = False
+            for premises, conclusion in self.rules:
+                # Check if all premises are in facts and conclusion is not
+                if all(premise in self.facts for premise in premises) and conclusion not in self.facts:
+                    self.facts.add(conclusion)
+                    changed = True
+                    # print(f"Inferred: {conclusion} from {premises}")
+    
+    def clear_facts(self):
+        """Clear all facts but keep rules."""
+        self.facts.clear()
+    
+    def get_facts(self) -> Set[str]:
+        """Get all current facts."""
+        return self.facts.copy()
+    
+    def get_rules(self) -> List:
+        """Get all rules."""
+        return self.rules.copy()
     
     def __str__(self) -> str:
         """String representation of KB."""
-        return f"KB with {len(self.facts)} facts and {len(self.rules)} rules"
+        facts_str = "\n  ".join(sorted(self.facts))
+        rules_str = "\n  ".join([f"{' AND '.join(premises)} → {conclusion}" 
+                               for premises, conclusion in self.rules])
+        return f"Knowledge Base:\nFacts ({len(self.facts)}):\n  {facts_str}\nRules ({len(self.rules)}):\n  {rules_str}"
 
 
 # ============================================================================
@@ -113,25 +132,30 @@ if __name__ == "__main__":
     kb.tell("Safe(2,3)")
     kb.tell("Free(2,3)")
     kb.tell("Adjacent(2,3,2,4)")
+    kb.tell("Free(2,4)")
     
     # Add some rules
     print("\nAdding rules...")
     kb.add_rule(["Safe(2,3)", "Free(2,3)"], "CanMove(2,3)")
     kb.add_rule(["Safe(2,3)", "Adjacent(2,3,2,4)", "Free(2,4)"], "SafePath(2,3,2,4)")
+    kb.add_rule(["SafePath(2,3,2,4)", "CanMove(2,3)"], "ShouldMove(2,3,2,4)")
     
-    # Query
-    print("\nQuerying...")
+    # Query before inference
+    print("\nQuerying before explicit inference...")
     print(f"Is Safe(2,3) known? {kb.ask('Safe(2,3)')}")
-    print(f"Is Obstacle(2,3) known? {kb.ask('Obstacle(2,3)')}")
+    print(f"Is CanMove(2,3) known? {kb.ask('CanMove(2,3)')}")
+    print(f"Is SafePath(2,3,2,4) known? {kb.ask('SafePath(2,3,2,4)')}")
+    print(f"Is ShouldMove(2,3,2,4) known? {kb.ask('ShouldMove(2,3,2,4)')}")
     
-    # Try inference
-    print("\nTrying inference...")
-    try:
-        kb.infer()
-        print(f"After inference, is CanMove(2,3) known? {kb.ask('CanMove(2,3)')}")
-    except NotImplementedError:
-        print("⚠️  Forward chaining not implemented yet!")
+    # Perform explicit inference
+    print("\nPerforming inference...")
+    kb.infer()
+    
+    # Query after inference
+    print("\nQuerying after inference...")
+    print(f"Is CanMove(2,3) known? {kb.ask('CanMove(2,3)')}")
+    print(f"Is SafePath(2,3,2,4) known? {kb.ask('SafePath(2,3,2,4)')}")
+    print(f"Is ShouldMove(2,3,2,4) known? {kb.ask('ShouldMove(2,3,2,4)')}")
     
     print(f"\n{kb}")
-    print("\n💡 Tip: Implement forward chaining to automatically derive new facts!")
-
+    print("\n✅ Knowledge Base with forward chaining is working!")
