@@ -2,7 +2,7 @@
 Logic Agent - RoboMind Project
 SE444 - Artificial Intelligence Course Project
 
-TODO: Implement logic-based reasoning agent
+Agent that uses logical reasoning for decision making.
 Phase 2 of the project (Week 3-4)
 """
 
@@ -10,7 +10,6 @@ import sys
 import os
 from typing import Tuple, List, Optional
 
-# Add parent directory to path
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
 from environment import GridWorld
@@ -27,52 +26,54 @@ class LogicAgent:
         self.env = environment
         self.kb = KnowledgeBase()
         self.position = environment.start
-        self.visited_positions = set()
+        self.visited_positions = set([self.position])
         self.setup_rules()
         
     def setup_rules(self):
         """Set up the initial inference rules for the agent."""
-        # Basic movement rules
-        self.kb.add_rule(["At(X,Y)", "Free(X+1,Y)"], "CanMoveDown(X,Y)")
-        self.kb.add_rule(["At(X,Y)", "Free(X-1,Y)"], "CanMoveUp(X,Y)")
-        self.kb.add_rule(["At(X,Y)", "Free(X,Y+1)"], "CanMoveRight(X,Y)")
-        self.kb.add_rule(["At(X,Y)", "Free(X,Y-1)"], "CanMoveLeft(X,Y)")
+        # Basic movement capability
+        self.kb.add_rule(["At(X,Y)", "Free(X+1,Y)"], "CanMoveDown")
+        self.kb.add_rule(["At(X,Y)", "Free(X-1,Y)"], "CanMoveUp") 
+        self.kb.add_rule(["At(X,Y)", "Free(X,Y+1)"], "CanMoveRight")
+        self.kb.add_rule(["At(X,Y)", "Free(X,Y-1)"], "CanMoveLeft")
         
-        # Goal direction rules
-        self.kb.add_rule(["At(X,Y)", "Goal(Xg,Yg)", "Xg > X", "CanMoveDown(X,Y)"], "ShouldMoveDown(X,Y)")
-        self.kb.add_rule(["At(X,Y)", "Goal(Xg,Yg)", "Xg < X", "CanMoveUp(X,Y)"], "ShouldMoveUp(X,Y)")
-        self.kb.add_rule(["At(X,Y)", "Goal(Xg,Yg)", "Yg > Y", "CanMoveRight(X,Y)"], "ShouldMoveRight(X,Y)")
-        self.kb.add_rule(["At(X,Y)", "Goal(Xg,Yg)", "Yg < Y", "CanMoveLeft(X,Y)"], "ShouldMoveLeft(X,Y)")
+        # Goal direction priority - RIGHT has highest priority for goal (X,X)
+        self.kb.add_rule(["GoalRight", "CanMoveRight"], "PriorityRight")
+        self.kb.add_rule(["GoalDown", "CanMoveDown"], "PriorityDown")
+        self.kb.add_rule(["GoalUp", "CanMoveUp"], "PriorityUp")
+        self.kb.add_rule(["GoalLeft", "CanMoveLeft"], "PriorityLeft")
         
-        # Exploration rules (when goal direction is blocked)
-        self.kb.add_rule(["At(X,Y)", "CanMoveUp(X,Y)", "NotVisited(X-1,Y)"], "ExploreUp(X,Y)")
-        self.kb.add_rule(["At(X,Y)", "CanMoveDown(X,Y)", "NotVisited(X+1,Y)"], "ExploreDown(X,Y)")
-        self.kb.add_rule(["At(X,Y)", "CanMoveLeft(X,Y)", "NotVisited(X,Y-1)"], "ExploreLeft(X,Y)")
-        self.kb.add_rule(["At(X,Y)", "CanMoveRight(X,Y)", "NotVisited(X,Y+1)"], "ExploreRight(X,Y)")
+        # Exploration when goal direction blocked
+        self.kb.add_rule(["CanMoveRight", "NotVisitedRight"], "ExploreRight")
+        self.kb.add_rule(["CanMoveDown", "NotVisitedDown"], "ExploreDown")
+        self.kb.add_rule(["CanMoveUp", "NotVisitedUp"], "ExploreUp")
+        self.kb.add_rule(["CanMoveLeft", "NotVisitedLeft"], "ExploreLeft")
         
-        # Safety rules
-        self.kb.add_rule(["Visited(X,Y)"], "Safe(X,Y)")
-        self.kb.add_rule(["Safe(X,Y)", "Free(X,Y)"], "CanRest(X,Y)")
+        # Final decision rules - FIXED PRIORITY ORDER
+        self.kb.add_rule(["PriorityRight"], "MoveRight")
+        self.kb.add_rule(["PriorityDown"], "MoveDown")
+        self.kb.add_rule(["PriorityUp"], "MoveUp")
+        self.kb.add_rule(["PriorityLeft"], "MoveLeft")
+        self.kb.add_rule(["ExploreRight"], "MoveRight")
+        self.kb.add_rule(["ExploreDown"], "MoveDown")
+        self.kb.add_rule(["ExploreUp"], "MoveUp")
+        self.kb.add_rule(["ExploreLeft"], "MoveLeft")
+        self.kb.add_rule(["CanMoveRight"], "MoveRight")
+        self.kb.add_rule(["CanMoveDown"], "MoveDown")
+        self.kb.add_rule(["CanMoveUp"], "MoveUp")
+        self.kb.add_rule(["CanMoveLeft"], "MoveLeft")
     
     def perceive(self):
         """Perceive the environment and update knowledge base."""
         row, col = self.position
         goal_row, goal_col = self.env.goal
         
-        # Clear previous position facts
         self.kb.clear_facts()
         
-        # Add current position
         self.kb.tell(f"At({row},{col})")
-        self.kb.tell(f"Goal({goal_row},{goal_col})")
+        
         self.visited_positions.add(self.position)
         
-        # Add visited facts
-        for pos in self.visited_positions:
-            r, c = pos
-            self.kb.tell(f"Visited({r},{c})")
-        
-        # Check all four directions
         directions = [
             (-1, 0, "Up"), (1, 0, "Down"), 
             (0, -1, "Left"), (0, 1, "Right")
@@ -82,38 +83,35 @@ class LogicAgent:
             new_pos = (row + dr, col + dc)
             new_row, new_col = new_pos
             
-            # Check if position is free
             if self.env.is_valid(new_pos):
                 self.kb.tell(f"Free({new_row},{new_col})")
+                self.kb.tell(f"CanMove{direction}")
+                
                 if new_pos not in self.visited_positions:
-                    self.kb.tell(f"NotVisited({new_row},{new_col})")
-            else:
-                self.kb.tell(f"Obstacle({new_row},{new_col})")
+                    self.kb.tell(f"NotVisited{direction}")
+            
+            # Goal direction - FIXED: prioritize moving RIGHT when goal is to the right
+            if direction == "Right" and goal_col > col:
+                self.kb.tell("GoalRight")
+            elif direction == "Down" and goal_row > row:
+                self.kb.tell("GoalDown")
+            elif direction == "Up" and goal_row < row:
+                self.kb.tell("GoalUp")
+            elif direction == "Left" and goal_col < col:
+                self.kb.tell("GoalLeft")
         
-        # Perform inference
         self.kb.infer()
     
     def reason(self) -> Optional[str]:
         """Use logic inference to make decisions."""
-        row, col = self.position
-        
-        # Check inference results in priority order
-        queries = [
-            (f"ShouldMoveUp({row},{col})", "move_up"),
-            (f"ShouldMoveDown({row},{col})", "move_down"), 
-            (f"ShouldMoveLeft({row},{col})", "move_left"),
-            (f"ShouldMoveRight({row},{col})", "move_right"),
-            (f"ExploreUp({row},{col})", "move_up"),
-            (f"ExploreDown({row},{col})", "move_down"),
-            (f"ExploreLeft({row},{col})", "move_left"),
-            (f"ExploreRight({row},{col})", "move_right"),
-            (f"CanMoveUp({row},{col})", "move_up"),
-            (f"CanMoveDown({row},{col})", "move_down"),
-            (f"CanMoveLeft({row},{col})", "move_left"),
-            (f"CanMoveRight({row},{col})", "move_right")
+        decision_queries = [
+            ("MoveRight", "move_right"),
+            ("MoveDown", "move_down"),
+            ("MoveUp", "move_up"),
+            ("MoveLeft", "move_left")
         ]
         
-        for query, action in queries:
+        for query, action in decision_queries:
             if self.kb.ask(query):
                 return action
         
@@ -132,7 +130,6 @@ class LogicAgent:
         if action is None:
             return False, "No valid action found"
         
-        # Execute the action
         row, col = self.position
         if action == "move_up":
             new_pos = (row - 1, col)
@@ -146,10 +143,12 @@ class LogicAgent:
             return False, f"Unknown action: {action}"
         
         if self.env.is_valid(new_pos):
+            old_position = self.position
             self.position = new_pos
-            return True, f"Moved {action.replace('move_', '')} to {new_pos}"
+            self.visited_positions.add(new_pos)
+            return True, f"Moved {action.replace('move_', '')} from {old_position} to {new_pos}"
         else:
-            return False, f"Cannot move {action.replace('move_', '')} to {new_pos}"
+            return False, f"Cannot move {action.replace('move_', '')} to blocked position"
     
     def run_to_goal(self, max_steps: int = 100) -> Tuple[bool, int, List[str]]:
         """
@@ -178,7 +177,8 @@ class LogicAgent:
         """Get summary of current knowledge state."""
         return {
             "position": self.position,
-            "visited": len(self.visited_positions),
+            "goal": self.env.goal,
+            "visited_positions": len(self.visited_positions),
             "facts": len(self.kb.get_facts()),
             "rules": len(self.kb.get_rules())
         }
@@ -190,35 +190,32 @@ class LogicAgent:
 
 if __name__ == "__main__":
     print("=" * 60)
-    print("  Testing Logic Agent")
-    print("=" * 60 + "\n")
+    print("  Testing Logic Agent - FIXED VERSION")
+    print("=" * 60)
     
-    # Create environment
     env = GridWorld(width=5, height=5)
     env.start = (0, 0)
     env.goal = (4, 4)
     
-    # Create agent
     agent = LogicAgent(env)
     
-    print("Initial knowledge summary:")
-    print(agent.get_knowledge_summary())
+    print("Initial state:")
+    print(f"Position: {agent.position}")
+    print(f"Goal: {agent.env.goal}")
     
-    print("\nPerceiving environment...")
-    agent.perceive()
+    print("Running to goal...")
+    success, steps, history = agent.run_to_goal(max_steps=30)
     
-    print("\nAfter perception:")
-    print(agent.get_knowledge_summary())
+    print(f"Goal reached: {success}")
+    print(f"Steps taken: {steps}")
+    print(f"Final position: {agent.position}")
     
-    print("\nTesting reasoning...")
-    action = agent.reason()
-    print(f"Recommended action: {action}")
+    if history:
+        print("Path taken:")
+        for i, action in enumerate(history[:10]):
+            print(f"  {i+1}: {action}")
     
-    print("\nTesting one action...")
-    success, description = agent.act()
-    print(f"Action result: {success} - {description}")
-    
-    print("\nCurrent knowledge:")
-    print(agent.get_knowledge_summary())
-    
-    print("\n✅ Logic Agent is working!")
+    if success:
+        print("🎉 SUCCESS: Agent reached the goal!")
+    else:
+        print("❌ Agent did not reach the goal")
