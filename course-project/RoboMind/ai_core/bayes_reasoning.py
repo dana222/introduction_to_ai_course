@@ -200,4 +200,3 @@ if __name__ == "__main__":
     
     print("\n💡 Tip: Start with the basic bayes_update() function,")
     print("   then build up to belief maps!")
-
