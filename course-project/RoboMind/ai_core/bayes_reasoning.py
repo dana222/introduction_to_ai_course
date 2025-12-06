@@ -41,13 +41,11 @@ def bayes_update(prior: float, likelihood: float, evidence: float) -> float:
         >>> posterior = bayes_update(P_H, P_E_given_H, P_E)
         >>> print(f"Updated belief: {posterior:.2f}")  # ~0.79 (79%)
     """
-    # TODO: Implement Bayes' rule
-    #
-    # Formula: posterior = (likelihood * prior) / evidence
-    #
-    # Watch out for division by zero!
-    
-    raise NotImplementedError("Bayes' rule not implemented yet!")
+    # Implement Bayes' rule (part 1 of phase 3)
+    if evidence == 0:
+        return prior # bc prior is the belief before seeing the evidence, we can't say return 1/0 here bc it means that the hypothesis is T/F and we don't know that without evidence 
+    posterior = (likelihood * prior) / evidence #posterior is the belief after seeing the evidence 
+    return posterior 
 
 
 def compute_evidence(prior: float, likelihood_h: float, likelihood_not_h: float) -> float:
@@ -68,8 +66,12 @@ def compute_evidence(prior: float, likelihood_h: float, likelihood_not_h: float)
         >>> P_E = compute_evidence(0.3, 0.9, 0.1)
         >>> print(f"P(evidence) = {P_E:.3f}")  # 0.34
     """
-    # TODO: Implement law of total probability
-    raise NotImplementedError("Evidence computation not implemented yet!")
+    # Implement law of total probability (P(E)) which is the total probability of seeing the evidence) (part 2 of phase 3)
+    p_notH = 1 - prior # p_notH is the probability of negation hypothesis P(¬H)
+    Probability_Evidence = (likelihood_h * prior) + (likelihood_not_h * p_notH) # P(E) formula
+    return Probability_Evidence
+
+
 
 
 def update_belief_map(belief_map: Dict[Tuple[int, int], float],
@@ -97,16 +99,22 @@ def update_belief_map(belief_map: Dict[Tuple[int, int], float],
         >>> sensor_says_obstacle = True
         >>> updated = update_belief_map(beliefs, sensor_says_obstacle, 0.9)
     """
-    # TODO: Implement belief map update
-    #
-    # For each cell:
-    #   1. Get prior belief
-    #   2. Compute likelihood based on sensor reading and accuracy
-    #   3. Compute evidence (total probability)
-    #   4. Apply Bayes' rule to get posterior
-    #   5. Store updated belief
+    # Implement belief map update (part 3 of phase 3)
+    for key, value in belief_map.items(): #to loop over the cells (keys) and prior (values) in the belief map. the cells here is (row, col)
+        prior = value # the prior here is the value before seeing any evidence
+        if sensor_reading == True: # True means sensor says there is obstacle
+            likelihood_h = sensor_accuracy # likelihood is P(E|H), sensor says obstacle and obstacle exists
+            likelihood_not_h = 1 - sensor_accuracy # likelihood_not_h is P(E|¬H), sensor says obstacle and obstacle doesn't exist
+        else: #False, sensor says there is no obstacle
+            likelihood_h = 1 - sensor_accuracy 
+            likelihood_not_h = sensor_accuracy
+
+        p_notH = 1 - prior
+        Probability_Evidence = (likelihood_h * prior) + (likelihood_not_h * p_notH) # Compute evidence
+        posterior = (likelihood_h * prior) / Probability_Evidence # Apply Bayes' rule to get posterior
+        belief_map[key] = posterior # Store updated belief
+    return belief_map 
     
-    raise NotImplementedError("Belief map update not implemented yet!")
 
 
 def sensor_model(actual_state: bool, sensor_accuracy: float = 0.9) -> Tuple[float, float]:
@@ -124,11 +132,11 @@ def sensor_model(actual_state: bool, sensor_accuracy: float = 0.9) -> Tuple[floa
         >>> P_true, P_false = sensor_model(actual_state=True, sensor_accuracy=0.9)
         >>> print(f"If obstacle exists: P(detect)={P_true}, P(miss)={P_false}")
     """
-    # TODO: Implement sensor model
-    if actual_state:  # obstacle exists
-        return sensor_accuracy, 1 - sensor_accuracy
+    # Implement sensor model (part 4 of phase 3)
+    if actual_state == True: # obstacle exists
+        return sensor_accuracy, 1 - sensor_accuracy #the probability the sensor says T, the probability the sensor says F
     else:  # no obstacle
-        return 1 - sensor_accuracy, sensor_accuracy
+        return 1 - sensor_accuracy, sensor_accuracy #the probability the sensor says T, the probability the sensor says F
 
 
 # ============================================================================
