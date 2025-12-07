@@ -2,14 +2,17 @@
 Hybrid Agent - RoboMind Project
 SE444 - Artificial Intelligence Course Project
 
+TODO: Integrate search + logic + probability Phase 4 of the project (Week 7-8) - Final Integration """
+
 Phase 4: Hybrid Integration
 Integrates Search + Logic + Probabilistic Reasoning
 """
 
+from typing import Tuple, List, Optional
 from environment import GridWorld
 from agents.search_agent import SearchAgent
 from ai_core.knowledge_base import KnowledgeBase
-from ai_core.bayes_reasoning import bayes_update  # placeholder import
+from ai_core.bayes_reasoning import update_belief_map
 
 
 class HybridAgent:
@@ -17,133 +20,148 @@ class HybridAgent:
     A rational agent that integrates search, logic, and probabilistic reasoning.
     """
 
-    def __init__(self, environment: GridWorld):
-        """Initialize the hybrid agent."""
-        self.env = environment
+    def __init__(self, env: GridWorld):
+        self.env = env
 
-        # --- Components ---
-        self.search_agent = SearchAgent(environment)
+        # Components
+        self.search_agent = SearchAgent(env)
         self.kb = KnowledgeBase()
 
-        # --- Internal State ---
-        self.beliefs = {}            # Probabilistic beliefs (e.g., cell -> P(safe))
-        self.position = self.env.get_agent_position()
-        self.goal = self.env.get_goal_position()
-        self.last_observation = None
+        # Internal state
+        self.position = env.agent_pos
+        self.goal = env.goal
+        self.belief_map = {}  # (row,col) -> P(obstacle)
 
-        # --- Parameters ---
-        self.uncertainty_threshold = 0.6  # if below, use probability reasoning
+        # Initialize belief map with uniform uncertainty for unknown/uncertain cells
+        for row in range(env.height):
+            for col in range(env.width):
+                if env.grid[row][col] == 1:  # Obstacle
+                    self.belief_map[(row, col)] = 1.0
+                elif env.grid[row][col] == 0:  # Free
+                    self.belief_map[(row, col)] = 0.0
+                else:  # Uncertain
+                    self.belief_map[(row, col)] = 0.5
 
-    # ============================================================
-    # PHASE 4 STRUCTURE — can be run before Phase 3 is implemented
-    # ============================================================
+        # Parameters
+        self.uncertainty_threshold = 0.6  # if P(obstacle) > threshold, consider unsafe
 
-    def perceive(self):
+    # -----------------------------
+    # Phase 4 Methods
+    # -----------------------------
+
+    def perceive(self) -> dict:
         """
         Get sensor readings from environment.
-        May be noisy — for now, simulate a perfect or placeholder sensor.
+        Returns dictionary: neighbor_pos -> observed state (True=obstacle, False=free)
         """
-        try:
-            observation = self.env.get_sensor_data(self.position)
-        except AttributeError:
-            # If env doesn't have noisy sensors yet, mock simple perception
-            observation = {"around": self.env.get_neighbors(self.position)}
-        self.last_observation = observation
+        neighbors = self.env.get_neighbors(self.position)
+        observation = {}
+        for cell in neighbors:
+            # Simple simulated sensor: read actual grid and add small noise if desired
+            r, c = cell
+            is_obstacle = self.env.grid[r][c] == 1
+            observation[cell] = is_obstacle
         return observation
+
+    def update_beliefs(self, observation: dict):
+        """
+        Update belief map using Phase 3 Bayesian reasoning.
+        """
+        for cell, sensor_reading in observation.items():
+            prior = self.belief_map[cell]
+            self.belief_map[cell] = update_belief_map({cell: prior}, sensor_reading)[cell]
 
     def reason(self):
         """
-        Use logic to infer safe or unsafe cells.
-        This can be run even without probabilistic reasoning.
+        Update knowledge base with logically inferred safe cells.
         """
-        # Example: simple inference rule
-        # (You can expand these rules later)
-        if self.last_observation:
-            for cell, info in self.last_observation["around"].items():
-                if info == "obstacle":
-                    self.kb.tell(f"Obstacle({cell})")
-                else:
-                    self.kb.tell(f"Safe({cell})")
+        for cell, p_obs in self.belief_map.items():
+            if p_obs < self.uncertainty_threshold:
+                self.kb.tell(f"Safe{cell}")
+            else:
+                self.kb.tell(f"Obstacle{cell}")
 
-        inferred_safe = self.kb.ask("Safe")
-        return inferred_safe
-
-    def update_beliefs(self):
+    def plan(self) -> Optional[List[Tuple[int, int]]]:
         """
-        Use Bayesian inference to handle uncertain sensor readings.
-        Stub: works even before Phase 3 is done.
+        Use search agent to plan path to goal avoiding cells with high obstacle probability.
+        Returns path as list of positions.
         """
-        if not self.last_observation:
-            return self.beliefs
-
-        # Placeholder — assign uniform beliefs if not using bayes_update yet
-        for cell, info in self.last_observation["around"].items():
-            if cell not in self.beliefs:
-                self.beliefs[cell] = 0.5  # unknown cells start uncertain
-
-        # Once Phase 3 is complete, plug in:
-        # self.beliefs = bayes_update(self.beliefs, self.last_observation)
-        return self.beliefs
-
-    def plan(self):
-        """
-        Use search algorithms to plan a path to the goal.
-        (Runs even without probabilistic info.)
-        """
-        path = self.search_agent.plan(start=self.position, goal=self.goal)
+        # Mark high-probability obstacles in environment temporarily for planning
+        blocked_cells = [cell for cell, p in self.belief_map.items() if p >= self.uncertainty_threshold]
+        # Here, you could modify env.grid or implement a temporary method in SearchAgent to avoid these
+        path, cost, expanded = self.search_agent.search('astar')
         return path
 
-    def act(self):
+    def select_next_move(self, path: Optional[List[Tuple[int, int]]]) -> Optional[Tuple[int, int]]:
         """
-        Integrate all reasoning techniques to decide next action.
+        Decide next action based on integrated reasoning:
+        1. Prefer path from search if exists
+        2. Use logic to avoid unsafe cells
+        3. If high uncertainty, pick neighbor with lowest P(obstacle)
+        """
+        if path and len(path) > 1:
+            next_pos = path[1]
+            # Safety check: avoid high-probability obstacles
+            if self.belief_map.get(next_pos, 0.0) < self.uncertainty_threshold:
+                return next_pos
 
-        Strategy:
-            1. If goal is visible and path is clear → use search
-            2. If uncertain about obstacles → use probability
-            3. If need to infer hidden info → use logic
+        # Explore safe neighbors inferred from logic
+        safe_neighbors = [cell for cell in self.env.get_neighbors(self.position) if self.kb.ask(f"Safe{cell}")]
+        if safe_neighbors:
+            return safe_neighbors[0]
+
+        # Fallback: pick neighbor with minimal probability of obstacle
+        neighbors = self.env.get_neighbors(self.position)
+        if neighbors:
+            next_pos = min(neighbors, key=lambda c: self.belief_map.get(c, 1.0))
+            return next_pos
+
+        return None
+
+    def act(self) -> Optional[Tuple[int, int]]:
         """
-        # --- Perceive environment ---
+        Complete perception → reasoning → planning → action cycle.
+        """
+        # Step 1: perceive
         observation = self.perceive()
 
-        # --- Update beliefs (stubbed if Phase 3 not ready) ---
-        beliefs = self.update_beliefs()
+        # Step 2: update beliefs (probabilistic reasoning)
+        self.update_beliefs(observation)
 
-        # --- Logic reasoning ---
-        inferred_safe = self.reason()
+        # Step 3: logic reasoning
+        self.reason()
 
-        # --- Decision logic ---
-        if self.goal in inferred_safe:
-            print("Goal inferred safe → using search to reach goal.")
-            path = self.plan()
-            action = path[1] if len(path) > 1 else None
-        elif any(p < self.uncertainty_threshold for p in beliefs.values()):
-            print("Uncertain environment → using probabilistic reasoning.")
-            # Placeholder: pick the cell with highest belief of being safe
-            safe_cell = max(beliefs, key=beliefs.get)
-            action = safe_cell
-        else:
-            print("No clear information → exploring logically inferred safe cells.")
-            action = inferred_safe[0] if inferred_safe else None
+        # Step 4: plan path (search)
+        path = self.plan()
 
-        if action:
-            self.position = action
-            print(f"Agent moves to {action}")
-        else:
-            print("No action decided — waiting for more info.")
-
-        return action
+        # Step 5: decide next move (integration)
+        next_pos = self.select_next_move(path)
+        if next_pos:
+            self.position = next_pos
+            self.env.agent_pos = next_pos  # move agent in environment
+        return next_pos
 
 
-# Example usage
+# -----------------------------
+# Example usage / test harness
+# -----------------------------
 if __name__ == "__main__":
-    print("Hybrid Agent - combines Search + Logic + Probability")
-    print("This is the final phase - integrate everything!")
+    env = GridWorld(width=10, height=10)
+    env.add_random_obstacles(15)
+    env.start = (0, 0)
+    env.goal = (9, 9)
+    env.agent_pos = env.start
 
-    # Mock environment (you can replace with actual GridWorld)
-    try:
-        env = GridWorld("maps/simple.txt")
-        agent = HybridAgent(env)
-        agent.act()
-    except Exception as e:
-        print("HybridAgent initialized without full environment for testing.")
-        print("Reason:", e)
+    agent = HybridAgent(env)
+
+    step = 0
+    max_steps = 50
+    while agent.position != env.goal and step < max_steps:
+        move = agent.act()
+        print(f"Step {step}: Agent moves to {move}")
+        step += 1
+
+    if agent.position == env.goal:
+        print("Agent reached the goal!")
+    else:
+        print("Agent did not reach the goal within step limit.")
