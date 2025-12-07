@@ -86,9 +86,13 @@ class HybridAgent:
         Use search agent to plan path to goal avoiding cells with high obstacle probability.
         Returns path as list of positions.
         """
+        # Always plan from the agent's CURRENT position (not the original start)
+        self.env.start = self.position
+
         # Mark high-probability obstacles in environment temporarily for planning
-        blocked_cells = [cell for cell, p in self.belief_map.items() if p >= self.uncertainty_threshold]
-        # Here, you could modify env.grid or implement a temporary method in SearchAgent to avoid these
+        blocked_cells = [cell for cell, p in self.belief_map.items()
+                         if p >= self.uncertainty_threshold]
+
         path, cost, expanded = self.search_agent.search('astar')
         return path
 
