@@ -2,7 +2,7 @@
 Hybrid Agent - RoboMind Project
 SE444 - Artificial Intelligence Course Project
 
-TODO: Integrate search + logic + probability Phase 4 of the project (Week 7-8) - Final Integration """
+TODO: Integrate search + logic + probability Phase 4 of the project (Week 7-8) - Final Integration 
 
 Phase 4: Hybrid Integration
 Integrates Search + Logic + Probabilistic Reasoning
