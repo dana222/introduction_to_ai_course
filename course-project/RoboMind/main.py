@@ -154,15 +154,52 @@ def test_logic():
 
 def test_probability():
     """Test probabilistic agent."""
-    print_header("Testing Probabilistic Agent")
-    
+    print_header("Testing Probabilistic Agent - Phase 3")
+
     if ProbabilisticAgent is None:
         print("❌ ProbabilisticAgent not implemented yet!")
         print("Please implement agents/probabilistic_agent.py")
         return
-    
-    print("Probabilistic agent testing coming soon...")
-    print("This will test Bayesian belief updates.")
+
+    # 1) Create environment
+    env = GridWorld(width=10, height=10, cell_size=60)
+    env.start = (1, 1)
+    env.goal = (8, 8)
+    env.agent_pos = env.start
+
+    # 2) Create probabilistic agent
+    agent = ProbabilisticAgent(env)
+
+    # 3) Initialize display
+    env.init_display()
+
+    print("Running probabilistic agent with noisy sensor...")
+    print("Close the window to stop.\n")
+
+    steps = 0
+    max_steps = 200  # just to be safe
+
+    while env.running and not env.is_goal(env.agent_pos) and steps < max_steps:
+        # Very simple fake sensor: for now, just "no obstacle" everywhere
+        # (you can later make this depend on env.grid if you want)
+        sensor_reading = False
+
+        # Update beliefs around current position
+        agent.update_beliefs(sensor_reading, env.agent_pos)
+
+        # Choose next move
+        next_pos = agent.act()
+        env.agent_pos = next_pos
+
+        # Render and handle events
+        env.render()
+        if not env.handle_events():
+            break
+
+        steps += 1
+
+    env.close()
+    print(f"Finished probabilistic test in {steps} steps.\n")
 
 
 def test_hybrid():
