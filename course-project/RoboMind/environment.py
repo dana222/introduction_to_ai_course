@@ -1,3 +1,4 @@
+from typing import Tuple, List, Optional
 class GridWorld:
     def __init__(self, map_file: str):
         with open(map_file, 'r') as f:
