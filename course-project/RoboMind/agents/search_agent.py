@@ -99,3 +99,85 @@ class SearchAgent:
         """Reset the agent's state."""
         self.path = None
         self.current_step = 0
+
+from collections import deque
+
+def bidirectional_search(grid, start, goal):
+    """
+    Bidirectional BFS.
+    Returns path, cost, expanded
+    """
+    if start == goal:
+        return [start], 0, 0
+
+    # Frontiers
+    frontier_start = deque([start])
+    frontier_goal = deque([goal])
+
+    # Parents for path reconstruction
+    parent_start = {start: None}
+    parent_goal = {goal: None}
+
+    visited_start = {start}
+    visited_goal = {goal}
+
+    expanded = 0
+
+    while frontier_start and frontier_goal:
+        # Expand from start side
+        expanded += 1
+        current = frontier_start.popleft()
+
+        for nx, ny in grid.get_neighbors(current):
+            if (nx, ny) not in visited_start:
+                visited_start.add((nx, ny))
+                parent_start[(nx, ny)] = current
+                frontier_start.append((nx, ny))
+
+                # MEETING POINT FOUND
+                if (nx, ny) in visited_goal:
+                    return reconstruct_bidirectional(
+                        parent_start,
+                        parent_goal,
+                        (nx, ny)
+                    ), len(visited_start | visited_goal), expanded
+
+        # Expand from goal side
+        expanded += 1
+        current = frontier_goal.popleft()
+
+        for nx, ny in grid.get_neighbors(current):
+            if (nx, ny) not in visited_goal:
+                visited_goal.add((nx, ny))
+                parent_goal[(nx, ny)] = current
+                frontier_goal.append((nx, ny))
+
+                if (nx, ny) in visited_start:
+                    return reconstruct_bidirectional(
+                        parent_start,
+                        parent_goal,
+                        (nx, ny)
+                    ), len(visited_start | visited_goal), expanded
+
+    return None, None, expanded
+
+
+def reconstruct_bidirectional(parent_start, parent_goal, meet):
+    """Reconstruct path for bidirectional search."""
+    # path from start → meet
+    path1 = []
+    current = meet
+    while current is not None:
+        path1.append(current)
+        current = parent_start[current]
+    path1.reverse()
+
+    # path from meet → goal
+    path2 = []
+    current = parent_goal[meet]
+    while current is not None:
+        path2.append(current)
+        current = parent_goal[current]
+
+    return path1 + path2
+
