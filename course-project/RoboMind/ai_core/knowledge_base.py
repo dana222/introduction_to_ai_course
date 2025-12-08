@@ -1,195 +1,135 @@
 """
-Knowledge Base - Logic Reasoning Module
-SE444 - Artificial Intelligence Course Project
-
-Upgraded to support:
-- Propositional logic (original)
-- First-Order Logic (BONUS)
-    ✓ Predicates
-    ✓ Variables
-    ✓ Unification
-    ✓ FOL forward chaining inference
+Knowledge Base with First-Order Logic (Supports Variables)
+SE444 - AI Course Project Bonus Extension
 """
 
-from typing import Set, List, Dict, Tuple
+from typing import List, Dict, Optional, Tuple
 import re
 
 
-# --------------------------
-# Predicate Parsing Utilities
-# --------------------------
-
-def parse_predicate(fact: str) -> Tuple[str, Tuple]:
+def parse_predicate(expr: str) -> Tuple[str, Tuple[str]]:
     """
-    Parse a predicate string into (name, args).
-    Example: "Safe(2,3)" → ("Safe", ("2", "3"))
-             "Free(x,y)" → ("Free", ("x", "y"))
+    Convert 'Safe(1,2)' → ('Safe', ('1','2'))
     """
-    match = re.match(r"(\w+)\((.*)\)", fact)
-    if not match:
-        return fact, ()  # simple propositional atom
-
-    name = match.group(1)
-    args = tuple(arg.strip() for arg in match.group(2).split(","))
+    name, args = expr.split("(")
+    args = args[:-1]  # remove ')'
+    args = tuple(a.strip() for a in args.split(","))
     return name, args
 
 
-def is_variable(x: str) -> bool:
+def unify(a, b, subst: Dict[str, str]) -> Optional[Dict[str, str]]:
     """
-    Variables start with lowercase letters.
-    Example: x, y, pos, a
-    """
-    return isinstance(x, str) and x and x[0].islower()
-
-
-def unify(a, b, subs=None):
-    """
-    Unify two predicate argument lists.
+    Unify arguments with variables.
     Example:
-        a = ("x", "3")
-        b = ("2", "3")
-        → subs = { "x": "2" }
+        unify(("X","Y"), ("1","2")) → {"X":"1","Y":"2"}
     """
-    if subs is None:
-        subs = {}
-
-    for arg_a, arg_b in zip(a, b):
-
-        if arg_a == arg_b:  # identical constants
-            continue
-
-        # arg_a is variable
-        if is_variable(arg_a):
-            if arg_a in subs:
-                if subs[arg_a] != arg_b:
-                    return None
-            else:
-                subs[arg_a] = arg_b
-            continue
-
-        # arg_b is variable
-        if is_variable(arg_b):
-            if arg_b in subs:
-                if subs[arg_b] != arg_a:
-                    return None
-            else:
-                subs[arg_b] = arg_a
-            continue
-
-        # mismatch constants → cannot unify
+    if subst is None:
         return None
 
-    return subs
+    if a == b:
+        return subst
+
+    # Variable case
+    if re.fullmatch(r"[A-Z]+", a):  # variable is uppercase
+        return unify_var(a, b, subst)
+
+    if re.fullmatch(r"[A-Z]+", b):
+        return unify_var(b, a, subst)
+
+    return None
 
 
-# --------------------------
-# Knowledge Base
-# --------------------------
+def unify_var(var, value, subst):
+    """Bind a variable."""
+    if var in subst:
+        return unify(subst[var], value, subst)
+    elif value in subst:
+        return unify(var, subst[value], subst)
+    else:
+        new_subst = subst.copy()
+        new_subst[var] = value
+        return new_subst
+
+
+def unify_tuple(args1, args2, subst):
+    """Unify tuple arguments (X,Y) with (1,2)."""
+    for a, b in zip(args1, args2):
+        subst = unify(a, b, subst)
+        if subst is None:
+            return None
+    return subst
+
 
 class KnowledgeBase:
-    """
-    Knowledge base supporting:
-    - Propositional logic
-    - First-Order Logic (BONUS)
-    """
+    """First-Order Logic Knowledge Base with forward chaining."""
 
     def __init__(self):
-        self.facts = set()        # stores strings
-        self.rules = []           # (premises, conclusion)
+        self.facts: List[str] = []  # factual predicates
+        self.rules: List[Tuple[List[str], str]] = []  # (premises, conclusion)
 
-    # --------------------------
-    # Adding facts
-    # --------------------------
+    # --- Facts Methods ---
     def tell(self, fact: str):
+        """Add a fact."""
         if fact not in self.facts:
-            self.facts.add(fact)
-            self.infer()
+            self.facts.append(fact)
 
-    # --------------------------
-    # Adding rules
-    # --------------------------
+    def clear_facts(self):
+        """Remove all facts (rules stay)."""
+        self.facts = []
+
+    def get_facts(self) -> List[str]:
+        return list(self.facts)
+
+    # --- Rules Methods ---
     def add_rule(self, premises: List[str], conclusion: str):
+        """Add a logical rule: premises → conclusion"""
         self.rules.append((premises, conclusion))
 
-    # --------------------------
-    # ASK (propositional)
-    # --------------------------
-    def ask(self, query: str) -> bool:
-        return query in self.facts
+    def get_rules(self) -> List[Tuple[List[str], str]]:
+        return list(self.rules)
 
-    # --------------------------
-    # Forward Chaining (FOL Version)
-    # --------------------------
-    def infer(self):
-        """
-        BONUS:
-        Full FOL forward chaining using unification.
-        Example:
-            Rule: Free(x,y) AND Safe(x,y) → CanMove(x,y)
-            Facts: Free(1,3), Safe(1,3)
-            Derived: CanMove(1,3)
-        """
-        changed = True
-        while changed:
-            changed = False
+    # --- Inference ---
+    def ask(self, query: str) -> bool:
+        """Check if KB can infer the query."""
+        derived = self.forward_chain()
+        return query in derived
+
+    def forward_chain(self) -> List[str]:
+        """Perform forward chaining to infer all possible facts."""
+        inferred = set(self.facts)
+        added = True
+
+        while added:
+            added = False
 
             for premises, conclusion in self.rules:
+                # Start with empty substitution
+                matches = [{}]
 
-                # Try to find substitutions that satisfy all premises
-                subs_list = [{}]  # list of possible substitutions
-
-                for prem in premises:
-                    pred_name, pred_args = parse_predicate(prem)
-
-                    new_subs_list = []
+                for premise in premises:
+                    new_matches = []
+                    p_name, p_args = parse_predicate(premise)
 
                     for fact in self.facts:
                         f_name, f_args = parse_predicate(fact)
-
-                        if pred_name != f_name or len(pred_args) != len(f_args):
+                        if p_name != f_name:
                             continue
 
-                        for subs in subs_list:
-                            new_subs = unify(
-                                tuple(subs.get(a, a) for a in pred_args),
-                                f_args,
-                                subs.copy()
-                            )
-                            if new_subs is not None:
-                                new_subs_list.append(new_subs)
+                        for subst in matches:
+                            result = unify_tuple(p_args, f_args, subst)
+                            if result is not None:
+                                new_matches.append(result)
 
-                    subs_list = new_subs_list
-
-                # No valid variable bindings → skip rule
-                if not subs_list:
-                    continue
+                    matches = new_matches
 
                 # Apply substitutions to conclusion
-                conc_name, conc_args = parse_predicate(conclusion)
+                for subst in matches:
+                    c_name, c_args = parse_predicate(conclusion)
+                    grounded = f"{c_name}({','.join(subst.get(arg, arg) for arg in c_args)})"
 
-                for subs in subs_list:
-                    instantiated_args = tuple(subs.get(a, a) for a in conc_args)
-                    new_fact = f"{conc_name}({','.join(instantiated_args)})"
+                    if grounded not in inferred:
+                        inferred.add(grounded)
+                        self.facts.append(grounded)
+                        added = True
 
-                    if new_fact not in self.facts:
-                        self.facts.add(new_fact)
-                        changed = True
-
-    # --------------------------
-    # Helpers
-    # --------------------------
-    def clear_facts(self):
-        self.facts.clear()
-
-    def get_facts(self) -> Set[str]:
-        return self.facts.copy()
-
-    def get_rules(self) -> List:
-        return self.rules.copy()
-
-    def __str__(self):
-        facts_str = "\n  ".join(sorted(self.facts))
-        rules_str = "\n  ".join(
-            [f"{' AND '.join(p)} → {c}" for p, c in self.rules]
-        )
-        return f"Knowledge Base:\nFacts ({len(self.facts)}):\n  {facts_str}\nRules ({len(self.rules)}):\n  {rules_str}"
+        return inferred
