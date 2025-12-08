@@ -1,135 +1,114 @@
 """
-Knowledge Base with First-Order Logic (Supports Variables)
-SE444 - AI Course Project Bonus Extension
+Knowledge Base - Logic Reasoning Module
+SE444 - Artificial Intelligence Course Project
+
+Implemented propositional logic knowledge base with inference
+Phase 2 (Week 3-4)
 """
 
-from typing import List, Dict, Optional, Tuple
-import re
-
-
-def parse_predicate(expr: str) -> Tuple[str, Tuple[str]]:
-    """
-    Convert 'Safe(1,2)' → ('Safe', ('1','2'))
-    """
-    name, args = expr.split("(")
-    args = args[:-1]  # remove ')'
-    args = tuple(a.strip() for a in args.split(","))
-    return name, args
-
-
-def unify(a, b, subst: Dict[str, str]) -> Optional[Dict[str, str]]:
-    """
-    Unify arguments with variables.
-    Example:
-        unify(("X","Y"), ("1","2")) → {"X":"1","Y":"2"}
-    """
-    if subst is None:
-        return None
-
-    if a == b:
-        return subst
-
-    # Variable case
-    if re.fullmatch(r"[A-Z]+", a):  # variable is uppercase
-        return unify_var(a, b, subst)
-
-    if re.fullmatch(r"[A-Z]+", b):
-        return unify_var(b, a, subst)
-
-    return None
-
-
-def unify_var(var, value, subst):
-    """Bind a variable."""
-    if var in subst:
-        return unify(subst[var], value, subst)
-    elif value in subst:
-        return unify(var, subst[value], subst)
-    else:
-        new_subst = subst.copy()
-        new_subst[var] = value
-        return new_subst
-
-
-def unify_tuple(args1, args2, subst):
-    """Unify tuple arguments (X,Y) with (1,2)."""
-    for a, b in zip(args1, args2):
-        subst = unify(a, b, subst)
-        if subst is None:
-            return None
-    return subst
+from typing import Set, List
 
 
 class KnowledgeBase:
-    """First-Order Logic Knowledge Base with forward chaining."""
-
+    """
+    A simple knowledge base for propositional logic.
+    
+    Stores facts and rules, performs forward chaining inference.
+    """
+    
     def __init__(self):
-        self.facts: List[str] = []  # factual predicates
-        self.rules: List[Tuple[List[str], str]] = []  # (premises, conclusion)
-
-    # --- Facts Methods ---
+        """Initialize empty knowledge base."""
+        self.facts = set()   # Known facts: "Safe(2,3)", "Obstacle(4,5)"
+        self.rules = []      # Rules: ("A", "B", "C") means "A AND B → C"
+    
     def tell(self, fact: str):
-        """Add a fact."""
+        """
+        Add a fact to the knowledge base.
+        
+        Args:
+            fact: A proposition like "Safe(2,3)" or "Explored(5,6)"
+        
+        Example:
+            >>> kb = KnowledgeBase()
+            >>> kb.tell("Safe(2,3)")
+            >>> kb.tell("Free(2,3)")
+        """
         if fact not in self.facts:
-            self.facts.append(fact)
-
-    def clear_facts(self):
-        """Remove all facts (rules stay)."""
-        self.facts = []
-
-    def get_facts(self) -> List[str]:
-        return list(self.facts)
-
-    # --- Rules Methods ---
+            self.facts.add(fact)
+            # Automatically trigger inference when new facts are added
+            self.infer()
+    
     def add_rule(self, premises: List[str], conclusion: str):
-        """Add a logical rule: premises → conclusion"""
+        """
+        Add an inference rule.
+        
+        Args:
+            premises: List of propositions that must all be true
+            conclusion: Proposition that follows from premises
+        
+        Example:
+            >>> kb.add_rule(["Safe(X)", "Free(X)"], "CanMove(X)")
+            This means: If Safe(X) AND Free(X) then CanMove(X)
+        """
         self.rules.append((premises, conclusion))
-
-    def get_rules(self) -> List[Tuple[List[str], str]]:
-        return list(self.rules)
-
-    # --- Inference ---
+    
     def ask(self, query: str) -> bool:
-        """Check if KB can infer the query."""
-        derived = self.forward_chain()
-        return query in derived
-
-    def forward_chain(self) -> List[str]:
-        """Perform forward chaining to infer all possible facts."""
-        inferred = set(self.facts)
-        added = True
-
-        while added:
-            added = False
-
+        """
+        Check if a query can be inferred from the knowledge base.
+        
+        Args:
+            query: A proposition to check
+        
+        Returns:
+            True if query is known or can be inferred, False otherwise
+        
+        Example:
+            >>> kb.ask("Safe(2,3)")
+            True
+        """
+        return query in self.facts
+    
+    def infer(self):
+        """
+        Apply forward chaining to derive new facts from rules.
+        
+        Forward chaining:
+            1. For each rule: check if all premises are satisfied
+            2. If yes, add conclusion to facts
+            3. Repeat until no new facts can be derived
+        
+        Example:
+            >>> kb.tell("Safe(2,3)")
+            >>> kb.tell("Free(2,3)")
+            >>> kb.add_rule(["Safe(2,3)", "Free(2,3)"], "CanMove(2,3)")
+            >>> kb.infer()
+            >>> kb.ask("CanMove(2,3)")
+            True
+        """
+        changed = True
+        while changed:
+            changed = False
             for premises, conclusion in self.rules:
-                # Start with empty substitution
-                matches = [{}]
-
-                for premise in premises:
-                    new_matches = []
-                    p_name, p_args = parse_predicate(premise)
-
-                    for fact in self.facts:
-                        f_name, f_args = parse_predicate(fact)
-                        if p_name != f_name:
-                            continue
-
-                        for subst in matches:
-                            result = unify_tuple(p_args, f_args, subst)
-                            if result is not None:
-                                new_matches.append(result)
-
-                    matches = new_matches
-
-                # Apply substitutions to conclusion
-                for subst in matches:
-                    c_name, c_args = parse_predicate(conclusion)
-                    grounded = f"{c_name}({','.join(subst.get(arg, arg) for arg in c_args)})"
-
-                    if grounded not in inferred:
-                        inferred.add(grounded)
-                        self.facts.append(grounded)
-                        added = True
-
-        return inferred
+                # Check if all premises are in facts and conclusion is not
+                if all(premise in self.facts for premise in premises) and conclusion not in self.facts:
+                    self.facts.add(conclusion)
+                    changed = True
+    
+    def clear_facts(self):
+        """Clear all facts but keep rules."""
+        self.facts.clear()
+    
+    def get_facts(self) -> Set[str]:
+        """Get all current facts."""
+        return self.facts.copy()
+    
+    def get_rules(self) -> List:
+        """Get all rules."""
+        return self.rules.copy()
+    
+    def __str__(self) -> str:
+        """String representation of KB."""
+        facts_str = "\n  ".join(sorted(self.facts))
+        rules_str = "\n  ".join([f"{' AND '.join(premises)} → {conclusion}" 
+                               for premises, conclusion in self.rules])
+        return f"Knowledge Base:\nFacts ({len(self.facts)}):\n  {facts_str}\nRules ({len(self.rules)}):\n  {rules_str}"
