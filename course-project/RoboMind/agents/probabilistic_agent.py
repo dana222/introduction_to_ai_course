@@ -7,26 +7,51 @@ Phase 3 of the project (Week 5-6)
 """
 
 from environment import GridWorld
-from ai_core.bayes_reasoning import bayes_update
-
+from ai_core.bayes_reasoning import update_belief_map
 
 class ProbabilisticAgent:
-    """
-    An agent that uses Bayesian reasoning to handle uncertainty.
-    """
-    
     def __init__(self, environment: GridWorld):
-        """Initialize the probabilistic agent."""
         self.env = environment
-        self.beliefs = {}  # Belief map: position -> probability
+        self.beliefs = {}
         
-    def update_beliefs(self, sensor_reading, position):
-        """Update beliefs using Bayes' rule."""
-        # TODO: Implement
-        raise NotImplementedError("Probabilistic agent not implemented yet!")
+        for row in range(self.env.height):
+            for col in range(self.env.width):
+                self.beliefs[(row, col)] = 0.2
+        
+        self.previous_position = None
+        
+    def update_beliefs(self, sensor_reading: bool, current_position):
+        neighbor_cells = self.env.get_neighbors(current_position)
+        
+        beliefs_to_update = {}
+        for cell in neighbor_cells:
+            beliefs_to_update[cell] = self.beliefs[cell]
+        
+        updated_beliefs = update_belief_map(beliefs_to_update, sensor_reading, 0.9)
+        
+        for cell_pos, new_prob in updated_beliefs.items():
+            self.beliefs[cell_pos] = new_prob
     
     def act(self):
-        """Decide action based on probabilistic beliefs."""
-        # TODO: Implement
-        raise NotImplementedError("Probabilistic actions not implemented yet!")
-
+        current_pos = self.env.agent_pos
+        possible_moves = self.env.get_neighbors(current_pos)
+        
+        if not possible_moves:
+            return current_pos
+        
+        move_options = [pos for pos in possible_moves if pos != self.previous_position]
+        
+        if len(move_options) == 0:
+            move_options = possible_moves
+        
+        safest_move = move_options[0]
+        lowest_risk = self.beliefs.get(safest_move, 1.0)
+        for pos in move_options:
+            risk = self.beliefs.get(pos, 1.0)
+            if risk < lowest_risk:
+                lowest_risk = risk
+                safest_move = pos
+        
+        self.previous_position = current_pos
+        
+        return safest_move
