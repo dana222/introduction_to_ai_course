@@ -30,6 +30,12 @@ class HybridAgent:
                 else:
                     self.beliefs[(y,x)]=0.5
         self.uncert_thresh=0.6
+
+      def make_plan(self)->Optional[List[Tuple[int,int]]]:
+        self.env.start=self.pos
+        blocked=[loc for loc,p in self.beliefs.items() if p>=self.uncert_thresh]
+        route,cost,exp=self.searcher.search('astar')
+        return route
         
     def sense(self)->dict:
         nearby=self.env.get_neighbors(self.pos)
@@ -40,11 +46,6 @@ class HybridAgent:
             obs[spot]=is_blocked
         return obs
         
-    def update_belief(self,observation:dict):
-        for loc,sensor_val in observation.items():
-            prior=self.beliefs[loc]
-            self.beliefs[loc]=update_belief_map({loc:prior},sensor_val)[loc]
-            
     def reason_logic(self):
         for cell,prob in self.beliefs.items():
             if prob<self.uncert_thresh:
@@ -52,13 +53,22 @@ class HybridAgent:
             else:
                 self.kb.tell(f"Obstacle{cell}")
 
-    def make_plan(self)->Optional[List[Tuple[int,int]]]:
-        self.env.start=self.pos
-        blocked=[loc for loc,p in self.beliefs.items() if p>=self.uncert_thresh]
-        route,cost,exp=self.searcher.search('astar')
-        return route
+     def act(self)->Optional[Tuple[int,int]]:
+        obs=self.sense()
+        self.update_belief(obs)
+        self.reason_logic()
+        route=self.make_plan()
+        nxt=self.pick_move(route)
+        if nxt:
+            self.pos=nxt
+            self.env.agent_pos=nxt
+        return nxt
 
-    def pick_move(self,path:Optional[List[Tuple[int,int]]])->Optional[Tuple[int,int]]:
+ def update_belief(self,observation:dict):
+        for loc,sensor_val in observation.items():
+            prior=self.beliefs[loc]
+            self.beliefs[loc]=update_belief_map({loc:prior},sensor_val)[loc]
+def pick_move(self,path:Optional[List[Tuple[int,int]]])->Optional[Tuple[int,int]]:
         if path and len(path)>1:
             next_cell=path[1]
             if self.beliefs.get(next_cell,0.0)<self.uncert_thresh:
@@ -71,18 +81,6 @@ class HybridAgent:
             next_pos=min(neighbors,key=lambda c:self.beliefs.get(c,1.0))
             return next_pos
         return None
-
-    def act(self)->Optional[Tuple[int,int]]:
-        obs=self.sense()
-        self.update_belief(obs)
-        self.reason_logic()
-        route=self.make_plan()
-        nxt=self.pick_move(route)
-        if nxt:
-            self.pos=nxt
-            self.env.agent_pos=nxt
-        return nxt
-
 
 # Example run
 if __name__=="__main__":
