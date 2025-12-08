@@ -102,82 +102,71 @@ class SearchAgent:
 
 from collections import deque
 
-def bidirectional_search(grid, start, goal):
-    """
-    Bidirectional BFS.
-    Returns path, cost, expanded
-    """
+def bidirectional_search(env, start, goal):
+    """Bidirectional BFS for faster shortest-path finding."""
     if start == goal:
         return [start], 0, 0
 
-    # Frontiers
-    frontier_start = deque([start])
-    frontier_goal = deque([goal])
+    # Two frontiers
+    front_start = {start}
+    front_goal = {goal}
 
-    # Parents for path reconstruction
+    # Parents for reconstructing path
     parent_start = {start: None}
     parent_goal = {goal: None}
 
-    visited_start = {start}
-    visited_goal = {goal}
-
     expanded = 0
 
-    while frontier_start and frontier_goal:
-        # Expand from start side
-        expanded += 1
-        current = frontier_start.popleft()
+    while front_start and front_goal:
+        # Expand smaller frontier for efficiency
+        if len(front_start) <= len(front_goal):
+            frontier = front_start
+            parents = parent_start
+            other_parents = parent_goal
+            direction = "forward"
+        else:
+            frontier = front_goal
+            parents = parent_goal
+            other_parents = parent_start
+            direction = "backward"
 
-        for nx, ny in grid.get_neighbors(current):
-            if (nx, ny) not in visited_start:
-                visited_start.add((nx, ny))
-                parent_start[(nx, ny)] = current
-                frontier_start.append((nx, ny))
+        next_frontier = set()
+
+        for node in frontier:
+            expanded += 1
+
+            for neighbor in env.get_neighbors(node):
+                if neighbor not in parents:
+                    parents[neighbor] = node
+                    next_frontier.add(neighbor)
 
                 # MEETING POINT FOUND
-                if (nx, ny) in visited_goal:
-                    return reconstruct_bidirectional(
-                        parent_start,
-                        parent_goal,
-                        (nx, ny)
-                    ), len(visited_start | visited_goal), expanded
+                if neighbor in other_parents:
+                    return _reconstruct_bidirectional_path(
+                        parent_start, parent_goal, neighbor
+                    ), len(_reconstruct_bidirectional_path(parent_start, parent_goal, neighbor)) - 1, expanded
 
-        # Expand from goal side
-        expanded += 1
-        current = frontier_goal.popleft()
+        if direction == "forward":
+            front_start = next_frontier
+        else:
+            front_goal = next_frontier
 
-        for nx, ny in grid.get_neighbors(current):
-            if (nx, ny) not in visited_goal:
-                visited_goal.add((nx, ny))
-                parent_goal[(nx, ny)] = current
-                frontier_goal.append((nx, ny))
-
-                if (nx, ny) in visited_start:
-                    return reconstruct_bidirectional(
-                        parent_start,
-                        parent_goal,
-                        (nx, ny)
-                    ), len(visited_start | visited_goal), expanded
-
-    return None, None, expanded
+    return None, float('inf'), expanded
 
 
-def reconstruct_bidirectional(parent_start, parent_goal, meet):
-    """Reconstruct path for bidirectional search."""
-    # path from start → meet
-    path1 = []
-    current = meet
-    while current is not None:
-        path1.append(current)
-        current = parent_start[current]
-    path1.reverse()
+def _reconstruct_bidirectional_path(parent_start, parent_goal, meet):
+    """Reconstruct full path from start → meet → goal."""
+    path_start = []
+    node = meet
+    while node is not None:
+        path_start.append(node)
+        node = parent_start[node]
+    path_start.reverse()
 
-    # path from meet → goal
-    path2 = []
-    current = parent_goal[meet]
-    while current is not None:
-        path2.append(current)
-        current = parent_goal[current]
+    path_goal = []
+    node = parent_goal[meet]
+    while node is not None:
+        path_goal.append(node)
+        node = parent_goal[node]
 
-    return path1 + path2
-
+    return path_start + path_goal
