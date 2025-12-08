@@ -44,3 +44,6 @@ class GridWorld:
                 else:
                     row_str += "0 "
             print(row_str)
+
+def demo():
+    print("Demo function - not implemented")
