@@ -10,129 +10,39 @@ from typing import Dict, Tuple
 
 
 def bayes_update(prior: float, likelihood: float, evidence: float) -> float:
-    """
-    Update belief using Bayes' Rule.
-    
-    Bayes' Rule:
-        P(H|E) = P(E|H) * P(H) / P(E)
-    
-    Where:
-        - P(H|E) = posterior probability (what we want to compute)
-        - P(E|H) = likelihood (probability of evidence given hypothesis)
-        - P(H) = prior probability (initial belief)
-        - P(E) = evidence probability (normalization factor)
-    
-    Args:
-        prior: P(Hypothesis) - our initial belief
-        likelihood: P(Evidence|Hypothesis) - how likely we see this evidence if H is true
-        evidence: P(Evidence) - overall probability of seeing this evidence
-    
-    Returns:
-        posterior: P(Hypothesis|Evidence) - updated belief
-    
-    Example:
-        Sensor detects obstacle with 90% accuracy.
-        Prior belief cell is blocked: 0.3
-        Sensor says "blocked"
-        
-        >>> P_H = 0.3              # prior: 30% believe it's blocked
-        >>> P_E_given_H = 0.9      # likelihood: if blocked, 90% sensor says blocked
-        >>> P_E = 0.3*0.9 + 0.7*0.1  # evidence: total prob of "blocked" reading
-        >>> posterior = bayes_update(P_H, P_E_given_H, P_E)
-        >>> print(f"Updated belief: {posterior:.2f}")  # ~0.79 (79%)
-    """
-    # Implement Bayes' rule (part 1 of phase 3)
     if evidence == 0:
-        return prior # bc prior is the belief before seeing the evidence, we can't say return 1/0 here bc it means that the hypothesis is T/F and we don't know that without evidence 
-    posterior = (likelihood * prior) / evidence #posterior is the belief after seeing the evidence 
-    return posterior 
-
+        return prior #bc prior is the belief before seeing the evidence, we can't say return 1/0 here bc it means that the hypothesis is T/F and we don't know that without evidence 
+    posterior = (likelihood * prior) / evidence
+    return posterior
 
 def compute_evidence(prior: float, likelihood_h: float, likelihood_not_h: float) -> float:
-    """
-    Compute total probability of evidence P(E) using law of total probability.
-    
-    P(E) = P(E|H)*P(H) + P(E|¬H)*P(¬H)
-    
-    Args:
-        prior: P(H)
-        likelihood_h: P(E|H)
-        likelihood_not_h: P(E|¬H)
-    
-    Returns:
-        P(E): Total probability of evidence
-    
-    Example:
-        >>> P_E = compute_evidence(0.3, 0.9, 0.1)
-        >>> print(f"P(evidence) = {P_E:.3f}")  # 0.34
-    """
-    # Implement law of total probability (P(E)) which is the total probability of seeing the evidence) (part 2 of phase 3)
-    p_notH = 1 - prior # p_notH is the probability of negation hypothesis P(¬H)
-    Probability_Evidence = (likelihood_h * prior) + (likelihood_not_h * p_notH) # P(E) formula
+    p_notH = 1 - prior
+    Probability_Evidence = (likelihood_h * prior) + (likelihood_not_h * p_notH)
     return Probability_Evidence
-
-
-
+                          
 
 def update_belief_map(belief_map: Dict[Tuple[int, int], float],
                       sensor_reading: bool,
                       sensor_accuracy: float = 0.9) -> Dict[Tuple[int, int], float]:
-    """
-    Update entire grid belief map based on sensor reading.
     
-    Sensor Model:
-        - If cell has obstacle:
-            P(sensor says "obstacle" | obstacle exists) = sensor_accuracy (e.g., 0.9)
-        - If cell is free:
-            P(sensor says "obstacle" | no obstacle) = 1 - sensor_accuracy (e.g., 0.1)
-    
-    Args:
-        belief_map: Dictionary mapping (row, col) -> probability of obstacle
-        sensor_reading: True if sensor detects obstacle, False otherwise
-        sensor_accuracy: Probability sensor is correct (default 0.9)
-    
-    Returns:
-        updated_belief_map: Updated probabilities for each cell
-    
-    Example:
-        >>> beliefs = {(0,0): 0.5, (0,1): 0.3, (1,0): 0.7}
-        >>> sensor_says_obstacle = True
-        >>> updated = update_belief_map(beliefs, sensor_says_obstacle, 0.9)
-    """
-    # Implement belief map update (part 3 of phase 3)
-    for key, value in belief_map.items(): #to loop over the cells (keys) and prior (values) in the belief map. the cells here is (row, col)
-        prior = value # the prior here is the value before seeing any evidence
-        if sensor_reading == True: # True means sensor says there is obstacle
-            likelihood_h = sensor_accuracy # likelihood is P(E|H), sensor says obstacle and obstacle exists
-            likelihood_not_h = 1 - sensor_accuracy # likelihood_not_h is P(E|¬H), sensor says obstacle and obstacle doesn't exist
-        else: #False, sensor says there is no obstacle
-            likelihood_h = 1 - sensor_accuracy 
+    for key, value in belief_map.items(): #to loop over the cells (keys) and prior (values) in the belief map
+        prior = value
+        if sensor_reading == True:
+            likelihood_h = sensor_accuracy
+            likelihood_not_h = 1 - sensor_accuracy
+        else:
+            likelihood_h = 1 - sensor_accuracy
             likelihood_not_h = sensor_accuracy
 
         p_notH = 1 - prior
-        Probability_Evidence = (likelihood_h * prior) + (likelihood_not_h * p_notH) # Compute evidence
-        posterior = (likelihood_h * prior) / Probability_Evidence # Apply Bayes' rule to get posterior
-        belief_map[key] = posterior # Store updated belief
-    return belief_map 
-    
+        Probability_Evidence = (likelihood_h * prior) + (likelihood_not_h * p_notH)
+        posterior = (likelihood_h * prior) / Probability_Evidence 
+        belief_map[key] = posterior
+    return belief_map
 
 
 def sensor_model(actual_state: bool, sensor_accuracy: float = 0.9) -> Tuple[float, float]:
-    """
-    Define the sensor model probabilities.
-    
-    Args:
-        actual_state: True if obstacle exists, False if free
-        sensor_accuracy: Accuracy of sensor
-    
-    Returns:
-        (P(sensor=True|state), P(sensor=False|state))
-    
-    Example:
-        >>> P_true, P_false = sensor_model(actual_state=True, sensor_accuracy=0.9)
-        >>> print(f"If obstacle exists: P(detect)={P_true}, P(miss)={P_false}")
-    """
-    # Implement sensor model (part 4 of phase 3)
+    #the probability the sensor will say there is an obstacle or not
     if actual_state == True: # obstacle exists
         return sensor_accuracy, 1 - sensor_accuracy #the probability the sensor says T, the probability the sensor says F
     else:  # no obstacle
