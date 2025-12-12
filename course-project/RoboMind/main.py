@@ -71,7 +71,7 @@ def test_search():
     agent = SearchAgent(env)
     
     # Test each algorithm
-    algorithms = ['bfs', 'ucs', 'astar','bidirectional']
+    algorithms = ['bfs', 'ucs', 'astar','bidirectional_search']
     results = {}
     
     for algo in algorithms:
