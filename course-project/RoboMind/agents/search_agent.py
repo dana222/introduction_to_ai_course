@@ -2,100 +2,111 @@
 Search Agent - RoboMind Project
 SE444 - Artificial Intelligence Course Project
 
-Agent that uses search algorithms to navigate the grid world.
+TODO: Implement search algorithms
+- Breadth-First Search (BFS)
+- Uniform Cost Search (UCS)  
+- A* Search
+
+Phase 1 of the project (Week 1-2)
 """
 
+from environment import GridWorld
 from typing import Tuple, List, Optional
-import sys
-import os
-
-# Add the parent directory to path to import ai_core
-sys.path.append(os.path.dirname(os.path.dirname(__file__)))
-
 from ai_core.search_algorithms import bfs, ucs, astar
 
 
 class SearchAgent:
     """
-    An AI agent that uses search algorithms to find paths in the grid world.
+    An agent that uses search algorithms to navigate the grid world.
     """
     
-    def __init__(self, env):
+    def __init__(self, environment: GridWorld):
         """
         Initialize the search agent.
         
         Args:
-            env: GridWorld environment
+            environment: The GridWorld environment
         """
-        self.env = env
-        self.path = None
-        self.current_step = 0
+        self.env = environment
+        self.path = []
+        self.current_pos = environment.start
     
-    def search(self, algorithm: str, heuristic: str = 'manhattan') -> Tuple[Optional[List], float, int]:
+    def search(self, algorithm='bfs', heuristic='manhattan') -> Tuple[Optional[List], float, int]:
         """
-        Perform search from start to goal using specified algorithm.
+        Find a path from start to goal using the specified algorithm.
         
         Args:
             algorithm: 'bfs', 'ucs', or 'astar'
             heuristic: 'manhattan' or 'euclidean' (for A* only)
         
         Returns:
-            path: List of positions from start to goal
+            path: List of (row, col) tuples forming the path
             cost: Total path cost
-            expanded: Number of nodes expanded
+            expanded: Number of nodes expanded during search
         """
-        start = self.env.start
-        goal = self.env.goal
+        print(f"\n🔍 Running {algorithm.upper()} search...")
+        print(f"   Start: {self.env.start}")
+        print(f"   Goal: {self.env.goal}")
         
-        print(f"Searching with {algorithm.upper()} from {start} to {goal}...")
-        
+        # Call the appropriate search algorithm
         if algorithm == 'bfs':
-            path, cost, expanded = bfs(self.env, start, goal)
+            path, cost, expanded = bfs(self.env, self.env.start, self.env.goal)
         elif algorithm == 'ucs':
-            path, cost, expanded = ucs(self.env, start, goal)
+            path, cost, expanded = ucs(self.env, self.env.start, self.env.goal)
         elif algorithm == 'astar':
-            path, cost, expanded = astar(self.env, start, goal, heuristic)
+            path, cost, expanded = astar(self.env, self.env.start, self.env.goal, heuristic)
         else:
             raise ValueError(f"Unknown algorithm: {algorithm}")
         
         self.path = path
-        self.current_step = 0
         
-        # Update environment for visualization
-        if path:
-            self.env.path = path
-            self.env.expanded = expanded
-        else:
-            self.env.path = []
-            self.env.expanded = expanded
-            
         return path, cost, expanded
     
-    def get_next_move(self) -> Optional[Tuple[int, int]]:
+    def move_along_path(self):
         """
-        Get the next position in the planned path.
-        
-        Returns:
-            Next position (row, col) or None if no path or at goal
+        Move the agent along the computed path (for visualization).
         """
-        if self.path is None or self.current_step >= len(self.path):
-            return None
+        if not self.path:
+            print("No path to follow!")
+            return
         
-        next_pos = self.path[self.current_step]
-        self.current_step += 1
-        return next_pos
+        print(f"\n🤖 Moving along path ({len(self.path)} steps)...")
+        
+        for i, pos in enumerate(self.path):
+            self.env.agent_pos = pos
+            self.env.visited.add(pos)
+            self.env.render()
+            
+            # Check if reached goal
+            if self.env.is_goal(pos):
+                print(f"✓ Goal reached at step {i+1}!")
+                break
+
+
+# Example usage and testing
+if __name__ == "__main__":
+    print("=== Search Agent Test ===\n")
     
-    def has_path(self) -> bool:
-        """Check if the agent has a valid path."""
-        return self.path is not None and len(self.path) > 0
+    # Create a test environment
+    env = GridWorld(width=8, height=8, cell_size=60)
     
-    def is_at_goal(self) -> bool:
-        """Check if the agent has reached the goal."""
-        if not self.has_path():
-            return False
-        return self.current_step >= len(self.path)
+    # Add some obstacles
+    obstacles = [(2, 2), (2, 3), (2, 4), (4, 4), (5, 4), (6, 4)]
+    for obs in obstacles:
+        env.add_obstacle(*obs)
     
-    def reset(self):
-        """Reset the agent's state."""
-        self.path = None
-        self.current_step = 0
+    env.start = (0, 0)
+    env.goal = (7, 7)
+    
+    # Create agent
+    agent = SearchAgent(env)
+    
+    # Test search (will fail until you implement the algorithms!)
+    try:
+        path, cost, expanded = agent.search('bfs')
+        print(f"\n✓ BFS found path with {len(path)} steps, cost={cost}, expanded={expanded} nodes")
+    except NotImplementedError:
+        print("\n⚠️  BFS not implemented yet - please implement in ai_core/search_algorithms.py")
+    except Exception as e:
+        print(f"\n❌ Error: {str(e)}")
+
