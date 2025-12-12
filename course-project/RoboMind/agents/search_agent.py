@@ -56,7 +56,7 @@ class SearchAgent:
         elif algorithm == 'astar':
             path, cost, expanded = astar(self.env, self.env.start, self.env.goal, heuristic)
         elif algorithm == 'bidirectional':
-    path, cost, expanded = bidirectional_search(self.env, self.env.start, self.env.goal)
+            path, cost, expanded = bidirectional_search(self.env, self.env.start, self.env.goal)
         else:
             raise ValueError(f"Unknown algorithm: {algorithm}")
         
