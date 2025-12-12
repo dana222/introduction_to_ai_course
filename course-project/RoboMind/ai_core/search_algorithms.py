@@ -125,3 +125,59 @@ def reconstruct_path(parent: dict, start: Tuple[int, int], goal: Tuple[int, int]
         current = parent.get(current)
     path.reverse()
     return path
+
+def bidirectional_search(env, start: Tuple[int, int], goal: Tuple[int, int]) -> Tuple[Optional[List], float, int]:
+    """Bidirectional BFS Search implementation."""
+    from collections import deque
+
+    if start == goal:
+        return [start], 0, 0
+    front_forward = deque([start])
+    front_backward = deque([goal])
+    visited_forward = {start: None}
+    visited_backward = {goal: None}
+    expanded = 0
+    meeting_node = None
+    while front_forward and front_backward:
+        if front_forward:
+            current_f = front_forward.popleft()
+            expanded += 1
+            for neighbor in env.get_neighbors(current_f):
+                if neighbor not in visited_forward:
+                    visited_forward[neighbor] = current_f
+                    front_forward.append(neighbor)
+                    if neighbor in visited_backward:
+                        meeting_node = neighbor
+                        break
+            if meeting_node:
+                break
+        if front_backward:
+            current_b = front_backward.popleft()
+            expanded += 1
+            for neighbor in env.get_neighbors(current_b):
+                if neighbor not in visited_backward:
+                    visited_backward[neighbor] = current_b
+                    front_backward.append(neighbor)
+                    if neighbor in visited_forward:
+                        meeting_node = neighbor
+                        break
+            if meeting_node:
+                break
+
+    if meeting_node is None:
+        return None, float('inf'), expanded
+    path_forward = []
+    node = meeting_node
+    while node is not None:
+        path_forward.append(node)
+        node = visited_forward[node]
+    path_forward.reverse()
+    path_backward = []
+    node = visited_backward[meeting_node]
+    while node is not None:
+        path_backward.append(node)
+        node = visited_backward[node]
+    full_path = path_forward + path_backward
+    cost = len(full_path) - 1 
+    return full_path, cost, expanded
+
