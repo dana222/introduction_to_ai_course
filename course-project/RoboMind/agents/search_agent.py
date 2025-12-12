@@ -12,7 +12,7 @@ Phase 1 of the project (Week 1-2)
 
 from environment import GridWorld
 from typing import Tuple, List, Optional
-from ai_core.search_algorithms import bfs, ucs, astar
+from ai_core.search_algorithms import bfs, ucs, astar,bidirectional_search
 
 
 class SearchAgent:
